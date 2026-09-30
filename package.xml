@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>drone_mocap</name>
+  <version>0.1.0</version>
+  <description>把動作捕捉（OptiTrack/VRPN）的位姿轉成 PX4 的 vehicle_visual_odometry，讓 EKF2 在室內有位置來源。</description>
+  <maintainer email="oliver.920906@gmail.com">oliver</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>px4_msgs</exec_depend>
+  <!-- vrpn_mocap 不列成依賴：這支只吃 PoseStamped，換成別的動捕系統
+       （或測試用的假資料）都能用。實機上另外 apt 裝 ros-humble-vrpn-mocap。 -->
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
