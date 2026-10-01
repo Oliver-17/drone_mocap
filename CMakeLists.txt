@@ -8,6 +8,7 @@ find_package(ament_cmake REQUIRED)
 # 真的量到延遲抖動有影響時再移植（節點每 5 秒回報的頻率就是判斷依據）。
 install(PROGRAMS
   scripts/mocap_to_px4_node.py
+  scripts/square_flight.py
   test/fake_mocap_publisher.py
   test/hover_check.py
   DESTINATION lib/${PROJECT_NAME}
