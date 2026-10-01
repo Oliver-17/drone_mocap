@@ -9,6 +9,7 @@ find_package(ament_cmake REQUIRED)
 install(PROGRAMS
   scripts/mocap_to_px4_node.py
   test/fake_mocap_publisher.py
+  test/hover_check.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
