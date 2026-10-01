@@ -74,6 +74,7 @@ class SquareFlight(Node):
             VehicleCommand, f"/{ns}/fmu/in/vehicle_command", 10)
 
         self.target = None      # 目前要送出去的設定點（PX4 NED）
+        self.vel_ff = None      # 速度前饋（PX4 NED）。None = 不送（停在原地時）
         self.yaw = None         # 整趟鎖住的機頭角，避免飛機邊走邊轉
         self.home = None        # 起飛點（PX4 NED），所有位移都相對它
         self.aborted = False
@@ -112,9 +113,15 @@ class SquareFlight(Node):
         s = TrajectorySetpoint()
         s.timestamp = m.timestamp
         s.position = [float(v) for v in self.target]
-        # 速度和加速度填 NaN = 「我只給位置，其他你自己算」。
-        # 填 0 的話 PX4 會當成「要求速度為零」，和位置目標打架。
-        s.velocity = [NAN, NAN, NAN]
+        # 速度前饋：和位置一起送，PX4 在 position=True 時會把它當前饋。
+        # ⚠️ 沒有這個的話會有結構性的落後 —— PX4 的位置控制器是比例控制
+        #    （MPC_XY_P 預設 0.95 1/s），速度指令 = 增益 × 位置誤差，
+        #    所以要維持 0.2 m/s 就「必須」有 0.2/0.95 = 21 cm 的誤差。
+        #    2026-10-01 實測：不送前饋時 SITL 和實機都穩定落後約 20 cm。
+        # 停在原地時送 NaN（不是 0）—— 填 0 會被當成「要求速度為零」，
+        # 和位置目標打架。
+        s.velocity = ([float(v) for v in self.vel_ff] if self.vel_ff
+                      else [NAN, NAN, NAN])
         s.acceleration = [NAN, NAN, NAN]
         s.yaw = float(self.yaw) if self.yaw is not None else NAN
         s.yawspeed = NAN
@@ -174,9 +181,12 @@ class SquareFlight(Node):
             return True
         v = speed if speed is not None else self.speed
         steps = max(1, int(dist / (v / RATE_HZ)))
+        # 速度前饋 = 單位方向 × 速度（PX4 NED）
+        self.vel_ff = [(b - a) / dist * v for a, b in zip(start, goal)]
+        # 印「絕對」房間座標。之前印相對偏移、但位置印絕對，兩個基準不同很容易誤判
         self.get_logger().info(
-            f"→ {label}：房間座標 ({east:+.2f}, {north:+.2f})、高度 {up:.2f} m，"
-            f"距離 {dist:.2f} m、約 {dist / v:.0f} 秒")
+            f"→ {label}：房間座標 ({goal[1]:+.2f}, {goal[0]:+.2f})、"
+            f"高度 {-goal[2]:.2f} m，距離 {dist:.2f} m、約 {dist / v:.0f} 秒")
         period, nxt = 1.0 / RATE_HZ, 0.0
         i = 0
         while rclpy.ok() and i < steps:
@@ -194,7 +204,9 @@ class SquareFlight(Node):
                         f"高度 {-self.pos.z:.2f}  追蹤誤差 {err * 100:.0f} cm")
             rclpy.spin_once(self, timeout_sec=0.01)
             if self._unsafe():
+                self.vel_ff = None
                 return False
+        self.vel_ff = None      # 到點了，接下來是停留 —— 不要再叫它繼續往前
         return True
 
     def land(self):
